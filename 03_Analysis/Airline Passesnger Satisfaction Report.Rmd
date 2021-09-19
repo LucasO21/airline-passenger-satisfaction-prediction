@@ -1,0 +1,883 @@
+---
+title: "Predicting Airline Passenger Satisfaction Using H20 AutoML & Lime"
+author: "Written by Lucas Okwudishu"
+output: 
+    html_document:
+        theme: flatly
+        highlight: tango
+        toc: yes
+        toc_float: true
+        doc_dept: 3
+        code_folding: show
+        
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+<br>
+
+![](h2o_image.png)
+
+# __Abstract__
+
+In this analysis, I aim to predict airline passenger satisfaction using [H2o AutoML](https://docs.h2o.ai/h2o/latest-stable/h2o-docs/automl.html) to test several models, and [Lime](https://cran.r-project.org/web/packages/lime/lime.pdf) to perform local interpretation of the final model used.
+
+#### __What is H2o AutoML?__
+
+H2o AutoML or Automatic Machine Learning is the process of automating algorithm selection, feature generation, hyper-parameter tuning, iterative modeling and model assessment. This speeds up the process of training machine learning models.
+
+#### __What is Lime?__
+
+While  measures like Accuracy, Precision, and Recall are useful for accessing how good a model is, these measures do not tell you why a model makes a specific prediction. Lime is a method for explaining the outcome of black box machine learning models.
+
+
+>> ***Please note that the scope of this project ends after implementing and interpreting H2o AutoML and a summary of findings. In a real world setting, this will just be the first step and further analysis will be needed to determine what the results of the model mean for the business or company in terms of financial benefits. Such analysis can include Expected Value Analysis, which is a framework that is used by companies in tying machine learning to ROI. To perform Expected Value Analysis, we will need additional data relating to financial costs and benefits of satisfied and unsatisfied passengers and we do not have such data. Additionally, the initial models produced performed very well in terms of accuracy, so I do not perform Hyper-Parameter Tuning in this analysis.*** 
+
+Before presenting a summary of findings, it may help to understand the data first.
+
+## __Data Description__
+
+The dataset comes from [Kaggle](https://www.kaggle.com/teejmahal20/airline-passenger-satisfaction?select=train.csv), and was was provided by an airline. Thus some of the data has been anonymized. See description of features below - 
+
++ __Training Set__ - 24 features and 103,904 observations
+
++ __Test Set__ - 24 features and 25,976 observations
+
+See detailed feature description below:
+
++ __Gender:__ Gender of the passengers (Female, Male)
+
++ __Customer Type:__ The customer type (Loyal customer, disloyal customer)
+
++ __Age:__ The actual age of the passengers
+
++ __Type of Travel:__ Purpose of the flight of the passengers (Personal Travel, Business Travel)
+
++ __Class:__ Travel class in the plane of the passengers (Business, Eco, Eco Plus)
+
++ __Flight distance:__ The flight distance of this journey
+
++ __In-flight wifi service:__ Satisfaction level of the in-flight wifi service (0:Not Applicable;1-5)
+
++ __Departure/Arrival time convenient:__ Satisfaction level of Departure/Arrival time convenient
+
++ __Ease of Online booking:__ Satisfaction level of online booking
+
++ __Gate location:__ Satisfaction level of Gate location
+
++ __Food and drink:__ Satisfaction level of Food and drink
+
++ __Online boarding:__ Satisfaction level of online boarding
+
++ __Seat comfort:__ Satisfaction level of Seat comfort
+
++ __In-flight entertainment:__ Satisfaction level of in-flight entertainment
+
++ __On-board service:__ Satisfaction level of On-board service
+
++ __Leg room service:__ Satisfaction level of Leg room service
+
++ __Baggage handling:__ Satisfaction level of baggage handling
+
++ __Check-in service:__ Satisfaction level of Check-in service
+
++ __In-flight service:__ Satisfaction level of in-light service
+
++ __Cleanliness:__ Satisfaction level of Cleanliness
+
++ __Departure Delay in Minutes:__ Minutes delayed when departure
+
++ __Arrival Delay in Minutes:__ Minutes delayed when Arrival
+
++ __Satisfaction:__ Airline satisfaction level(Satisfaction, neutral or dissatisfaction). **This is our outcome feature**.
+
+>> ***Note: All features with "Satisfaction level of..." have a 0 - 5 score with 5 reflecting the highest level of satisfaction. Also looking at the data, it appears 0 was assigned if the passenger did not score that feature, or the airline did not have that feature available.***
+
+---
+
+## __Summary of Findings__
+
+### __Pre-Modeling__
+
+The dataset was fairly "balanced", with 43.3% of **Satisfied** and 56.7% of **Not Satisfied** passengers. A pre-modeling correlation funnel provided an initial understanding of some of the drivers of passenger satisfaction.
+
+```{r, echo=FALSE, out.width="120%"}
+library(tidyverse)
+
+correlation_funnel_plot_report <- readRDS("../06_Exec_Summary_Plots/corr_funnel.rds")
+
+correlation_funnel_plot_report
+```
+
+In the plot above, the x axis shows the correlations, while the y axis shows the features. We can see **Satisfied** and **Not Satisfied** on the extreme ends ( -1 and 1), as those are showing perfect correlations with themselves. However it is all the other features that should be focused on. We can see what features correlate with a passenger being **Satisfied** or **Not Satisfied**, from top to bottom of the chart by strength of correlation. For example **Class** shows the strongest correlation with **Satisfaction**. Passengers in the Business class show stronger correlation with **Satisfied** while passengers in Eco and Eco Plus show stronger correlation with **Not Satisfied**.
+
+Additionally looking at the 3rd feature, **Online Boarding**. Recall this is a satisfaction score from 0 - 5 (5 being the highest) in regards to the location of the gate. We can see that passengers with a score of 4 and 5 show correlation with satisfied, while passengers with scores of 3, 2 and 1 show correlation with not **Satisfied.** Passengers with a score of 0 in this case show no correlation at all. 
+
+Numeric Features (**Age**, **Flight Distance**, **Departure Delay** and **Arrival Delay**) are binned into 4 bins and correlations vs the outcome is plotted on the chart as well. 
+
+The plot above provided an initial understanding of how each feature related to the outcome. However it's important to note that correlation does not imply causation. 
+
+
+### __Post-Modeling__
+
+H2o AutoML produced several high performing models, however the **XGBOOST** was the leading model and had the best overall performance in terms of predicting whether a passenger was ***Satisfied*** or ***Not Satisfied***. Gain and Lift calculations (using the XGBOOST model) were used to access the benefits of using a predictive model over a baseline of 56% (proportion of ***Not Satisfied*** customers in the dataset). For example, the model was 100% accurate in predicting the outcome of the first 2,597 passengers most likely (based on probability) to be ***Not Satisfied*** resulting in a Gain of 18% and Lift of 1.8 passengers (over the baseline) in the first 2,597 passengers.
+
+```{r, echo=FALSE, out.width="80%"}
+readRDS("../06_Exec_Summary_Plots/gain_chart.rds")
+```
+```{r, echo=FALSE, out.width="80%"}
+readRDS("../06_Exec_Summary_Plots/lift_chart.rds")
+```
+
+---
+
+Finally, Lime was used to further interpret our model and understand the drivers of Satisfied vs Not Satisfied Passengers. For any single passenger of set of passengers, we can visually understand why the model predicted an outcome.
+
+```{r, echo=FALSE, out.width="80%"}
+readRDS("../06_Exec_Summary_Plots/single_explainer_plot.rds")
+```
+
+For this passenger, the model correctly predicted them as ***Not Satisfied***. The blue bars are features that support their outcome, while the red bars are features that contradict their outcome. The length of the bars represent the weight assigned to that feature in supporting or contradicting their predicted outcome. In the plot above, features like Customer Type (Disloyal), In-Flight Wifi Service (2), Online Boarding (3) supported the predicted outcome of Not Satisfied, while features like Type of Travel (Business), Leg Room Service (1) and Departure Delay (12 minutes) contradicts the predicted outcome of Not Satisfied.
+
+Using Lime in this case, the airline can run analysis on passengers that were Not Satisfied and come with recommendations for improving their experience, thus changing their satisfaction to Satisfied.
+
+<br>
+---
+<br>
+
+# __Detailed Analysis__
+
+Starting below, I go though the entire analysis. Please note that while I provide code for all the outputs, some outputs are created using custom functions I created and saved in a separate file. Such files will be made available on Github.
+
+## __1.0  Libraries and Data__
+
+Here I load the data do some brief initial cleaning such as removing and additional index column named "x", and changing the name of one of the outcomes from "neutral or dissatisfied" to "not satisfied".
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# Libraries 
+
+## Data Wrangling
+library(tidyverse)
+
+## Visualizations 
+library(skimr)
+library(patchwork)
+library(correlationfunnel)
+library(DataExplorer)
+library(formattable)
+library(DT)
+library(knitr)
+library(png)
+
+## Modeling
+library(recipes)
+library(h2o)
+library(lime)
+```
+
+```{r, echo=FALSE}
+# Load Data
+train_raw_tbl <- read.csv("../00_Data/00_Data_Raw/train.csv") %>% as_tibble()
+test_raw_tbl <- read.csv("../00_Data/00_Data_Raw/test.csv") %>% as_tibble()
+
+# Source File With Custom Functions
+source("../02_Functions/functions_airline_passengers_analysis.R")
+
+train_raw_tbl <- train_raw_tbl %>% 
+    setNames(names(.) %>% str_to_lower()) %>% 
+    mutate(satisfaction = case_when(
+        satisfaction == "neutral or dissatisfied" ~ "not satisfied",
+        TRUE ~ "satisfied"
+    )) %>% 
+    select(-x) %>% 
+    mutate_if(is.character, as.factor)
+
+test_raw_tbl <- test_raw_tbl %>% 
+    setNames(names(.) %>% str_to_lower()) %>% 
+    mutate(satisfaction = case_when(
+        satisfaction == "neutral or dissatisfied" ~ "not satisfied",
+        TRUE ~ "satisfied"
+    )) %>% 
+    select(-x) %>% 
+    mutate_if(is.character, as.factor)
+```
+
+
+## __2.0  Data Quality Inspection__
+
+A detailed feature description has already been provided in the introduction above. Please refer to that section if you need to. 
+
+#### __Checking For Missing Values__
+```{r, figures-side, fig.show="hold", out.width="50%"}
+par(mar = c(4, 4, .1, .1))
+
+p1 <- train_raw_tbl %>% 
+    func_plot_missing_data()+
+    func_plot_axis_text_format()+
+    labs(title = "Missing Values: Train Set", y = "")
+   
+
+p2 <- test_raw_tbl %>% 
+    func_plot_missing_data()+
+    func_plot_axis_text_format()+
+    labs(title = "Missing Values: Test Set", y = "")
+
+p1
+p2
+```
+
+
+Except for a few missing values in the Arrival Delay column, this is a complete dataset. We'll decide on a method to impute the missing values later on. 
+
+---
+
+## __3.0:  Exploratory Data Analysis__
+
+
+### __3.1  Data Summary - skimr__
+
+The **`skim()`** function can be use to get a quick summary of the dataset.
+
+```{r}
+train_raw_tbl %>% skim()
+```
+A few things to note here. Numeric features from 3 - 17 (Flight Distance - Cleanliness) can be considered as ordered categorical features as they represent satisfaction scores from 0 - 5. We'll need to convert these to factors later on. Also ID just an identifier for the passenger and will not be used for modeling.
+
+Next we go deeper and explore a few features of interest.
+
+### __3.2 Categorical Features__
+
+```{r, echo=FALSE}
+# Color Scale Manual
+scale_manual_2 <- c("#ce295e", "#476481")
+scale_manual_3 <- c("#476481", "#ce295e", "#f57814")
+scale_manual_5 <- c("#476481", "#ce295e", "#f57814", "#cc0033", "#006633")
+```
+
+#### __Proportion of Outcome (Satisfaction)__
+  
+```{r, out.width="80%"}
+train_raw_tbl %>% 
+  count(satisfaction) %>% 
+  ungroup() %>% 
+  mutate(pct = n/sum(n),
+         pct_txt = pct %>% scales::percent(accuracy = .1)) %>% 
+  ggplot(aes(satisfaction, n, fill = satisfaction))+
+  geom_col(col = "black")+
+  expand_limits(y = c(0, 63000))+
+  scale_y_continuous(labels = scales::comma_format())+
+  geom_text(aes(label = pct_txt), vjust = -1, size = 4, fontface = "bold")+
+  theme_bw()+
+  scale_fill_manual(values = scale_manual_2)+
+  theme(legend.title = element_blank(),
+        legend.key.size = unit(0.35, "cm"))+
+  labs(title = "Proportion of Outcome feature (Satisfaction)", x = "", y = "")
+  
+```
+
+Dataset appears fairly balanced.
+
+---
+
+#### __Age vs Class__
+
+```{r, fig.show="hold", out.width="80%"}
+# par(mar = c(4, 4, .1, .1))
+
+p1 <- train_raw_tbl %>% 
+    ggplot(aes(class, fill = satisfaction))+
+    geom_bar(width = 0.7, position = position_dodge(), col = "black")+
+    scale_y_continuous(labels = scales::comma_format())+
+    scale_fill_manual(values = scale_manual_2)+
+    theme_bw()+
+    func_plot_axis_text_format(mosaic = FALSE)+
+    labs(title = "Count")+
+    theme(legend.position = "bottom",
+          legend.direction = "horizontal",
+          legend.title = element_blank(),
+          legend.key.size = unit(0.35, "cm"))
+    
+p2 <-  train_raw_tbl %>% 
+    ggplot(aes(class, age, fill = satisfaction))+
+    geom_boxplot()+
+    scale_y_continuous(labels = scales::comma_format())+
+    scale_fill_manual(values = scale_manual_2)+
+    theme_bw()+
+    func_plot_axis_text_format(mosaic = FALSE)+
+    labs(title = "Distribution")+
+    theme(legend.position = "none")
+
+p2 / p1 +
+  plot_annotation(title = "Age vs Class", theme = theme(plot.title = element_text(face = "bold")))
+```
+
+---
+
+Although there is a high count of passengers in the Eco class, majority of them are Not Satisfied, while the opposite is the case for the Business class where majority of the passesengers are Satisfied. Additionally looking at the boxplots, we can see that passengers flying Business and are Satisfied are slightly older then passengers Not Satisfied. Overall the median of passengers Satisfied is slightly higher than passengers Not Satisfied. 
+
+---
+
+#### __Age vs Travel Type__
+
+```{r, fig.show="hold", out.width="80%"}
+# par(mar = c(4, 4, .1, .1))
+
+p3 <- train_raw_tbl %>% 
+    ggplot(aes(type.of.travel, fill = satisfaction))+
+    geom_bar(width = 0.7, position = position_dodge(), col = "black")+
+    scale_y_continuous(labels = scales::comma_format())+
+    scale_fill_manual(values = scale_manual_2)+
+    theme_bw()+
+    func_plot_axis_text_format(mosaic = FALSE)+
+    labs(title = "Frequency - Travel Type", y = "freq")
+    
+p4 <-  train_raw_tbl %>% 
+    ggplot(aes(type.of.travel, age, fill = satisfaction))+
+    geom_boxplot()+
+    scale_y_continuous(labels = scales::comma_format())+
+    scale_fill_manual(values = scale_manual_2)+
+    theme_bw()+
+    func_plot_axis_text_format(mosaic = FALSE)+
+    labs(title = "Distribution - Age vs Travel Type")+
+    theme(legend.position = "none")
+
+p4 / p3 +
+  plot_annotation(title = "Age vs Travel Type", theme = theme(plot.title = element_text(face = "bold")))
+```
+
+---
+
+Majority of the passengers flying for Personal Travel are Not Satisfied. This may be of interest to the airline to understand why this is the case. 
+
+Next, I'll show a series of mosaic plots to visualize the relationships between some categorical features with satisfaction scores (0 - 5) and the outcome feature (Satisfaction).
+
+```{r, fig.show="hold", out.width="80%"}
+func_mosaic_plot(data = train_raw_tbl, var_name = on.board.service) + 
+  facet_grid(~ on.board.service, scales = "free_x", space = "free_x")+
+  func_plot_axis_text_format(facet = TRUE, mosaic = TRUE)+
+  labs(title = "Online Boarding", x = "", y = "")
+```
+
+---
+
+```{r, fig.show="hold", out.width="80%"}
+func_mosaic_plot(data = train_raw_tbl, var_name = inflight.wifi.service) + 
+  facet_grid(~ inflight.wifi.service, scales = "free_x", space = "free_x")+
+  func_plot_axis_text_format(facet = TRUE, mosaic = TRUE)+
+  labs(title = "In Flight Wifi Service", x = "", y = "")
+```
+
+---
+
+```{r, fig.show="hold", out.width="80%"}
+func_mosaic_plot(data = train_raw_tbl, var_name = seat.comfort) + 
+  facet_grid(~ seat.comfort, scales = "free_x", space = "free_x")+
+  func_plot_axis_text_format(facet = TRUE, mosaic = TRUE)+
+    labs(title = "Seat Comfort", x = "", y = "")
+```
+
+```{r, fig.show="hold", out.width="80%"}
+func_mosaic_plot(data = train_raw_tbl, var_name = inflight.entertainment) + 
+  facet_grid(~ inflight.entertainment, scales = "free_x", space = "free_x")+
+  func_plot_axis_text_format(facet = TRUE, mosaic = TRUE)+
+    labs(title = "In Flight Entertainment", x = "", y = "")
+```
+
+---
+
+```{r, fig.show="hold", out.width="80%"}
+func_mosaic_plot(data = train_raw_tbl, var_name = ease.of.online.booking) + 
+  facet_grid(~ ease.of.online.booking, scales = "free_x", space = "free_x")+
+  func_plot_axis_text_format(facet = TRUE, mosaic = TRUE)+
+    labs(title = "Ease Of Online Booking", x = "", y = "")
+```
+
+```{r, fig.show="hold", out.width="80%"}
+func_mosaic_plot(data = train_raw_tbl, var_name = checkin.service) + 
+  facet_grid(~ checkin.service, scales = "free_x", space = "free_x")+
+  func_plot_axis_text_format(facet = TRUE, mosaic = TRUE)+
+    labs(title = "Check-In Service", x = "", y = "")
+```
+
+The mosaic plots above are indicative of the relationships between satisfaction scores of predictors and the outcome feature (Satisfaction). The x axis shows variation in proportions of scores (0 - 5) for each feature. The y axis shows variation in proportion of Satisfaction. Most features show variations in the proportion of overall Satisfaction, as well as variations in proportion of Satisfaction for each score (0 - 5.).
+
+---
+
+## __3.3: Numeric Features__
+
+We can plot histograms to understand the distributions of other numeric features - 
+
+```{r, fig.show="hold", out.width="80%"}
+# Histogram of Numeric features
+train_raw_tbl %>% 
+    select(age, flight.distance, departure.delay.in.minutes, arrival.delay.in.minutes, satisfaction) %>% 
+    gather(key = key, value = value, age:arrival.delay.in.minutes) %>% 
+    ggplot(aes(value, fill = satisfaction))+
+    geom_histogram()+
+    scale_y_continuous(labels = scales::comma_format())+
+    scale_x_continuous(labels = scales::comma_format())+
+    facet_wrap(~ key, scales = "free")+
+    theme_bw()+
+    func_plot_axis_text_format(facet = TRUE, mosaic = FALSE)+
+    scale_fill_manual(values = scale_manual_2)+
+    labs(title = "Numeric features")+
+    theme(legend.position = "bottom",
+          legend.direction = "horizontal",
+          legend.title = element_blank(),
+          legend.key.size = unit(0.35, "cm"))
+    
+```
+
+We can observe skewed data for Arrival Delay, Departure Delay and Flight Distance, however this should not be an issue as H2o Auto-ML will handle any necessary pre-processing for skewed data. 
+
+---
+
+## __4.0: Modeling__
+
+>> ***Note: From this section on, I will not be showing all the outputs. H2o outputs are pretty lengthy so I'll be selective in what outputs I show.***
+
+Steps to be taken in this phase include:
+
+__Step 1: Pre-Processing:__ H2o does perform most of the pre-processing steps however we still need to do a few things first, including releveling the outcome (Satisfaction) factor levels (I don't really think this step is necessary however it does help me interpret the results better). I'll also create a **recipe** to perform the following - 
+
+1) Remove the ID column (we don't need this for modeling)
+2) Remove any zero variance predictors
+3) Impute missing values in Arrival Delay with the median which is 0
+
+__Step 2: Split Train Set Into Training & Validation Sets:__ Here we'll covert our train and test sets into H2o objects and also split the train set into training and validation sets, which is a requirement for H2o.
+
+__Step 3: Create Model Specifications & Implement H2o:__  This includes assigning roles to our features (predictors and outcome), specifying our training and validation sets, and setting **`[max_runtime_secs]()`**.
+
+__Step 4: Inspect Leaderboard:__ Inspect H2o models and determine the best model. 
+
+### 4.1: __Initial Pre-Processing__
+
+Here we do a **`fct_relevel()`** on the outcome and create a basic **`recipe()`** object.
+
+```{r}
+# Relevel Factors for Satisfaction 
+train_raw_tbl <- train_raw_tbl %>% 
+    mutate(across(c(inflight.wifi.service:cleanliness), factor)) %>% 
+    mutate(satisfaction = satisfaction %>% fct_relevel(
+        "satisfied", "not satisfied"
+    ))
+
+test_raw_tbl <- test_raw_tbl %>% 
+    mutate(across(c(inflight.wifi.service:cleanliness), factor)) %>% 
+    mutate(satisfaction = satisfaction %>% fct_relevel(
+        "satisfied", "not satisfied"
+    ))
+
+# Recipe
+recipe_obj <- recipe(satisfaction ~ ., data = train_raw_tbl) %>% 
+    step_rm(id) %>% 
+    step_zv(all_predictors()) %>% 
+    step_medianimpute(arrival.delay.in.minutes) %>% 
+    prep()
+
+# Apply (Bake) the Recipe to the Train & Test Set
+train_tbl <- bake(recipe_obj, new_data = train_raw_tbl)
+test_tbl <- bake(recipe_obj, new_data = test_raw_tbl)
+```
+
+We are now ready to convert our train and test sets to H2o objects. First we'll need to initialize H2o. If you're using H2o for the first time, you'll need to [install](https://docs.h2o.ai/h2o/latest-stable/h2o-docs/downloading.html) it prior to initializing.
+
+```{r}
+# Initialize H2o
+h2o.init()
+
+# Disable Progress Bar 
+h2o.no_progress()
+```
+
+### __4.2: Split Training Data & convert to H2o Objects__
+
+```{r}
+# Split H2o Frame into Training & Validation Sets
+h2o_split_obj <- h2o.splitFrame(as.h2o(train_tbl), ratios = c(0.85), seed = 100)
+train_h2o <- h2o_split_obj[[1]]
+valid_h2o <- h2o_split_obj[[2]]
+test_h2o <- as.h2o(test_tbl)
+
+```
+
+---
+
+### __4.3: Model Specification & Implementation__
+
+This step could take some time to run, depending on the number on the **`max_runtime_secs()`** and **`nfolds()`** you specify. For this, I'm using 300 secs and 5 folds to ease computation time. Increasing these numbers may improve model performance. 
+
+```{r, eval=FALSE}
+# Assign Roles
+y <- "satisfaction"
+x <- setdiff(names(train_h2o), y)
+
+# Model Specification
+automl_models_h2o <- h2o.automl(
+    x = x,
+    y = y,
+    training_frame = train_h2o,
+    validation_frame = valid_h2o,
+    max_runtime_secs = 300,
+    nfolds = 5,
+    seed = 100
+    
+)
+
+```
+
+---
+
+```{r, echo=FALSE, eval=FALSE}
+# Save Top 5 H2o Models
+h2o.getModel("XGBoost_grid__1_AutoML_20210603_185006_model_1") %>% 
+    h2o.saveModel(path = "05_Models/")
+
+h2o.getModel("StackedEnsemble_AllModels_AutoML_20210603_185006") %>% 
+    h2o.saveModel(path = "05_Models/")
+
+h2o.getModel("StackedEnsemble_BestOfFamily_AutoML_20210603_185006") %>% 
+    h2o.saveModel(path = "05_Models/")
+
+h2o.getModel("GBM_grid__1_AutoML_20210603_185006_model_1") %>% 
+    h2o.saveModel(path = "05_Models/")
+
+h2o.getModel("XGBoost_2_AutoML_20210603_185006") %>% 
+    h2o.saveModel(path = "05_Models/")
+```
+
+
+### __4.4: Leaderboard Inspection & Model Performance__
+
+While H2o produces 20 different models, we'll examine the top 5 models (based on Area Under the Curve).
+
+```{r, eval=FALSE, echo=FALSE}
+# Inspect Leaderboard
+top_5_leaderboard_transformed_tbl <- automl_models_h2o@leaderboard %>% 
+    as_tibble() %>% 
+    slice(1:5) %>% 
+    select(model_id, auc, logloss) %>% 
+    mutate(auc = round(auc, 3),
+           logloss = round(logloss,3)) 
+
+top_5_leaderboard_dt_table <- datatable(
+    caption = "Leaderboard Ranking by AUC & Logloss",
+    formattable(top_5_leaderboard_transformed_tbl, list(
+    auc = color_tile("transparent", "lightgreen"),
+    logloss = color_tile("lightgreen", "transparent")
+ )))
+
+saveRDS(object = top_5_leaderboard_dt_table, file = "../06_Exec_Summary_Plots/top_5_leaderbord_dt_table.rds")
+```
+
+```{r}
+# Load Data Table with Top 5 Models
+readRDS("../06_Exec_Summary_Plots/top_5_leaderbord_dt_table.rds")
+```
+
+We can see the top 5 models ranked by **auc** and **logloss**. All models have a very high **auc**.
+
+>> ***Top 5 models were saved in a folder to avoid re-running the models everytime I opened the file. Going forward models will be loaded from the saved file. Additionally, I do not go into hyper-parameter tuning via grid search for this analysis. Refer to documentation [here](https://docs.h2o.ai/h2o/latest-stable/h2o-docs/grid-search.html) to learn how to perform hyper-parameter tuning and grid search in H2o.***
+
+## __5.0: Model Performance Evaluation__
+
+In this section we'll further investigate the performance of our top model (XGBoost_grid__1_AutoML). To see detailed information about about a model, we can just enter the model id in the console. H2o outputs are pretty long and detailed so I'll just extract the relevant parts I want to show. 
+
+Here I show how to extract the **auc** for the train, validation and cross-validation. The model has great performance across all sets.
+
+```{r}
+# Load Leaderboard Leader 
+automl_leader <- h2o.loadModel("../05_Models/XGBoost_grid__1_AutoML_20210603_185006_model_1")
+
+h2o.auc(automl_leader, train = TRUE, valid = TRUE, xval = TRUE)
+```
+
+Additionally, we can evaluate this model on our test set. Again, high **auc** on the test set. 
+
+```{r}
+# AUC on Test Set
+h2o.auc(h2o.performance(automl_leader, newdata = test_h2o))
+```
+
+To make predictions on the test data, we can run the code below.
+
+```{r}
+h2o.predict(automl_leader, newdata = test_h2o) %>% head()
+```
+To get the confusion matrix on the test set, we can run the code below.
+
+```{r}
+h2o.confusionMatrix(automl_leader, newdata = test_h2o)
+```
+
+>> ***Note: When evaluating performance of H2o models on a test set, we can use the h2o.performance() function and supply the test set as newdata. Additionally, we can see a list of performance metrics by calling our performance object then add "@metrics" at the end of it. You can find further details [here](https://docs.h2o.ai/h2o/latest-stable/h2o-docs/performance-and-prediction.html).***
+
+---
+
+#### __ROC Plots__
+
+We can visualize **ROC** Plots for our top  model. 
+
+```{r, echo=FALSE}
+func_get_model_performance_auc_plot <- function(model_h2o){
+    
+    perf_h2o <- h2o.performance(model_h2o, newdata = test_h2o)
+    
+    perf_h2o %>% 
+        h2o.metric() %>% 
+        as_tibble() %>% 
+        mutate(auc = h2o.auc(perf_h2o)) %>% 
+        select(tpr, fpr, auc, precision, recall)
+}
+```
+
+```{r, out.width="90%"}
+# Load Models
+xgboost_grid_1_automl <- h2o.loadModel("../05_Models/XGBoost_grid__1_AutoML_20210603_185006_model_1")
+stacked_ensemble_all_automl <- h2o.loadModel("../05_Models/StackedEnsemble_AllModels_AutoML_20210603_185006")
+stacked_ensemble_bof_automl <- h2o.loadModel("../05_Models/StackedEnsemble_BestOfFamily_AutoML_20210603_185006")
+gbm_grid_1_automl <- h2o.loadModel("../05_Models/GBM_grid__1_AutoML_20210603_185006_model_1")
+xgboost_2_automl <- h2o.loadModel("../05_Models/XGBoost_2_AutoML_20210603_185006")
+
+# Evaluate Performance on Test Set. Extract Metrics for ROC Plot Using Custom Function
+xgboost_grid_1_automl_perf <- xgboost_grid_1_automl %>% 
+    func_get_model_performance_auc_plot() %>% 
+    mutate(model = "xgboost_grid_1_automl")
+
+xgboost_grid_1_automl_perf %>% 
+  mutate(auc = auc %>% round(5) %>%  as.character() %>% as.factor()) %>% 
+  ggplot(aes(fpr, tpr, color = model, linetype = auc))+
+  geom_line(size = 1.5)+
+  scale_color_manual(values = scale_manual_5)+
+  theme_bw()+
+  func_plot_axis_text_format(facet = TRUE)+
+   labs(title = "ROC Plot", subtitle = "xgboost_grid_1_automl")+
+   theme(legend.position = "none")
+
+```
+
+Normally you would want visually inspect **roc** curves for multiple models to determine the model with the best **auc**, however since all 5 models are at about 99%, the plots will just overlap each other if plotted that way. Key note here all 5 models are performing well on our test set. 
+
+## __6.0: Gain & Lift__
+
+Gain and Lift are additional performance measures for classification models and can be used to make a business case for the necessity of a predictive model. They measure how much better one can expect to do with a predictive model than without a model, and is widely used in marketing analytics and other domains. 
+
+In this case, suppose the airline would like to predict unsatisfied passengers and find ways to improve their experience, this could potentially cost the airline additional money and other resources. Thus a targeted approach using predictive modeling will be more feasible than a random blanket approach. 
+
+```{r}
+# Predictions
+predictions_tbl <- h2o.predict(object = xgboost_grid_1_automl, newdata = test_h2o) %>% as_tibble()
+
+predictions_tbl %>% 
+  bind_cols(test_tbl %>% select(satisfaction)) %>% 
+  arrange(desc(not.satisfied)) %>% 
+  slice(1:2597) %>% 
+  mutate(match = case_when(
+      predict == "not satisfied" & satisfaction == "not satisfied" ~ "match",
+      TRUE ~ "not a match")) %>% 
+  group_by(match) %>% 
+  count() %>% 
+  mutate(pct = n/sum(n))
+```
+
+Within the first 2,597 (1st decile of 10 equal buckets) passengers with the highest probability of Not Satisfied, our model has a 100% accuracy rate. Without a model, we might only expect the proportion of Not Satisfied passengers for the first 2,597 to be 56% (this is the proportion of Not Satisfied customers in the dataset), i.e 1454 people. Also looking at the entire test set, if 14,573 (56% * 25,976) passengers were Not Satisfied we have detected 2,597 of 14,573 (18%) in the first 2,597 passengers. Additionally, Lift is the ratio between the Gain (2,597) and what we expected (1454). So here our Lift is 2,597 / 1,454 = ~1.8. We just gained 1.8 passengers in the first 2,597 cases. 
+
+Next we can plot the gain and Lift charts.
+
+```{r, out.width="90%"}
+# Gain Data 
+gain_data_tbl <- predictions_tbl %>% 
+    bind_cols(test_tbl %>% select(satisfaction)) %>% 
+    arrange(desc(not.satisfied)) %>% 
+    mutate(ntile = ntile(not.satisfied, n = 16)) %>% 
+    group_by(ntile) %>% 
+    summarise(
+        cases = n(),
+        responses = sum(satisfaction == "not satisfied")
+    ) %>% 
+    arrange(desc(ntile)) %>% 
+    mutate(group = row_number()) %>% 
+    select(group, cases, responses) %>% 
+    mutate(
+        cumulative_responses = cumsum(responses),
+        pct_responses        = responses / sum(responses),
+        gain                 = cumsum(pct_responses),
+        cumulative_pct_cases = cumsum(cases) / sum(cases),
+        lift                 = gain / cumulative_pct_cases,
+        gain_baseline        = cumulative_pct_cases,
+        lift_baseline        = gain_baseline / cumulative_pct_cases
+        
+    ) %>% 
+    select(group, cumulative_pct_cases, gain, gain_baseline) %>% 
+    gather(key = key, value = value, gain, gain_baseline )
+
+arrow_types <- expand.grid(
+    lineend = c('round', 'butt', 'square'),
+    linejoin = c('round', 'mitre', 'bevel'),
+    stringsAsFactors = FALSE
+)
+
+arrow_types <- data.frame(arrow_types, y = 1:9)
+
+gain_chart <- gain_data_tbl %>% 
+    ggplot(aes(cumulative_pct_cases, value, color = key))+
+    geom_line(size = 1.5)+
+    theme_bw()+
+    theme(legend.position = "right")+
+    labs(title = "Gain Chart",
+         x = "Cumulative Data Fraction", y = "Gain")+
+    func_plot_axis_text_format()+
+    scale_color_manual(values = c("#2c3e50", "#CE295E"))
+
+gain_chart
+```
+
+```{r, out.width="90%"}
+# Lift Data 
+lift_data_tbl <- predictions_tbl %>% 
+    bind_cols(test_tbl %>% select(satisfaction)) %>% 
+    arrange(desc(not.satisfied)) %>% 
+    mutate(ntile = ntile(not.satisfied, n = 16)) %>% 
+    group_by(ntile) %>% 
+    summarise(
+        cases = n(),
+        responses = sum(satisfaction == "not satisfied")
+    ) %>% 
+    arrange(desc(ntile)) %>% 
+    mutate(group = row_number()) %>% 
+    select(group, cases, responses) %>% 
+    mutate(
+        cumulative_responses = cumsum(responses),
+        pct_responses        = responses / sum(responses),
+        gain                 = cumsum(pct_responses),
+        cumulative_pct_cases = cumsum(cases) / sum(cases),
+        lift                 = gain / cumulative_pct_cases,
+        gain_baseline        = cumulative_pct_cases,
+        lift_baseline        = gain_baseline / cumulative_pct_cases
+        
+    ) %>% 
+    select(group, cumulative_pct_cases, lift, lift_baseline) %>% 
+    gather(key = key, value = value, lift, lift_baseline )
+
+# Visualize Lift Data
+lift_chart <- lift_data_tbl %>% 
+    ggplot(aes(cumulative_pct_cases, value, color = key))+
+    geom_line(size = 1.5)+
+    theme_bw()+
+    theme(legend.position = "right")+
+    labs(title = "Lift Chart",
+         x = "Cumulative Data Fraction", y = "Gain")+
+    func_plot_axis_text_format()+
+    scale_color_manual(values = c("#2c3e50", "#CE295E"))
+
+lift_chart
+```
+```{r, eval=FALSE, echo=FALSE}
+saveRDS(object = gain_chart, file = "../06_Exec_Summary_Plots/gain_chart.rds")
+saveRDS(object = lift_chart, file = "../06_Exec_Summary_Plots/lift_chart.rds")
+```
+
+## __7.0:  Model Interpretation With Lime__
+
+In this section, we'll use Lime to interpret the predictions made by our H2o AutoML. Lime helps understand which features are driving our outcome (Satisfied or Not Satisfied). 
+
+First let's take a look at predictions for the first 10 passengers in the test set. 
+
+```{r}
+first_10_predictions_tbl <- predictions_tbl %>% 
+    bind_cols(test_raw_tbl %>% select(satisfaction, id)) %>% 
+    slice(1:10)
+
+first_10_predictions_tbl
+```
+
+From the output above, 3rd row (id 12360) is predicted correctly as Not Satisfied with a probability of 0.997. We can investigate the features for this passenger.
+
+```{r}
+test_raw_tbl %>% 
+    filter(id == 12360) %>% 
+    glimpse()
+```
+
+We can see this passenger was male, 20 years old, and also had mostly low scores for In-Flight Service, Ease of Online Booking, etc. Lime helps us further determine why the model classified this passenger correctly as Not Satisfied. 
+
+### __7.1  Lime For A Single Explanation__
+
+Lets use Lime to -
+
+1) Build an explainer object
+
+2) Produce an explanation for passenger 12360
+
+3) Visualize the explanation
+
+```{r, out.width="90%"}
+# Build Explainer Object
+explainer_obj <- train_tbl %>% 
+    select(-satisfaction) %>% 
+    lime(
+        model          = xgboost_grid_1_automl,
+        bin_continous  = TRUE, # bins numeric features based on quantiles
+        n_bins         = 4,
+        quantile_bins  = TRUE # puts equal proportions into each bin
+    )
+
+# Use Explainer Object to Produce an Explanation for passenger 12360
+set.seed(200)
+explanation <- test_tbl %>% 
+    slice(3) %>% 
+    select(-satisfaction) %>% 
+    lime::explain(
+        explainer      = explainer_obj,
+        n_labels       = 1,
+        n_features     = 10, # Top 10 features to explain
+        n_permutations = 5000,
+        kernel_width   = 3.5, # Can be tuned using grid search
+        dist_fun       = "manhattan",
+        feature_select = "lasso_path"
+    )
+
+# Visualize Explanation
+single_explainer_plot <- plot_features(explanation = explanation, ncol = 1)+
+  func_plot_axis_text_format()
+
+single_explainer_plot
+```
+Looking at the explanations for passenger 12360, we can see the top 10 features that determined the predicted outcome. The length of the bar is the value of the weight which with Lime assigns to that feature. Additionally, the model predicted this passenger as Not Satisfied with a high probability of approximately 1. Explanation fit refers to the R-Squared for the explanation. 
+
+Blue bars are features that support or lead to this passengers predicted outcome (Not Satisfied), while red bars are features that contradicts the passengers predicted outcome. Customer Type (Disloyal Customer) has the highest weight is highly supportive of this customer's Not Satisfied prediction. Alternatively, this customer's Type Of Travel is Business Travel and Contradicts the prediction of Not Satisfied. We can also see all other features, though with smaller weights, also support the prediction of Not Satisfied. 
+
+Additionally we can explain and visualize for multiple passengers. Lets create explanations for the next 10 passengers (rows 17 - 20) of the test set. This range has a good mix of correctly predicted outcomes of Satisfied and Not Satisfied.
+
+```{r}
+# Build Multiple Explanations
+
+set.seed(120)
+multiple_explanation <- test_tbl %>% 
+    slice(17:20) %>% 
+    select(-satisfaction) %>% 
+    lime::explain(
+        explainer      = explainer_obj,
+        n_labels       = 1,
+        n_features     = 10,
+        n_permutations = 5000,
+        kernel_width   = 3.5,
+        dist_fun       = "manhattan",
+        feature_select = "lasso_path"
+    )
+
+multiple_explainer_plot <- plot_features(multiple_explanation, ncol = 2)+
+  func_plot_axis_text_format()
+
+multiple_explainer_plot
+```
+```{r, echo=FALSE, eval=FALSE}
+# Save Single Explainer
+saveRDS(object = single_explainer_plot, file = "../06_Exec_Summary_Plots/single_explainer_plot.rds")
+```
+
+## __8.0: Next Steps__
+
+As I mentioned earlier, building a predictive model would be the first step in a real world setting. Next steps will involve using the Expected Value Framework to translate the model in ROI by examining the financial impact of using the model. Scenario Analysis can also be used to test the financial impact of using the model while adjusting the probability prediction threshold.
