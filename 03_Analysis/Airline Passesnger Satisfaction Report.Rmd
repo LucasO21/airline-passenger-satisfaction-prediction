@@ -149,7 +149,7 @@ Using Lime in this case, the airline can run analysis on passengers that were No
 
 # __Detailed Analysis__
 
-Starting below, I go though the entire analysis. Please note that while I provide code for all the outputs, some outputs are created using custom functions I created and saved in a separate file. Such files will be made available on Github.
+Starting below, I go though the entire analysis. Please note that while I provide code for all the outputs, some outputs are created using custom functions I created and saved in a separate file. Such files will be made available on [Github](https://github.com/LucasO21/Airline-Passenger-Satisfaction-Prediction).
 
 ## __1.0  Libraries and Data__
 
@@ -873,6 +873,7 @@ multiple_explainer_plot <- plot_features(multiple_explanation, ncol = 2)+
 
 multiple_explainer_plot
 ```
+
 ```{r, echo=FALSE, eval=FALSE}
 # Save Single Explainer
 saveRDS(object = single_explainer_plot, file = "../06_Exec_Summary_Plots/single_explainer_plot.rds")
@@ -881,3 +882,5 @@ saveRDS(object = single_explainer_plot, file = "../06_Exec_Summary_Plots/single_
 ## __8.0: Next Steps__
 
 As I mentioned earlier, building a predictive model would be the first step in a real world setting. Next steps will involve using the Expected Value Framework to translate the model in ROI by examining the financial impact of using the model. Scenario Analysis can also be used to test the financial impact of using the model while adjusting the probability prediction threshold.
+
+Source code for this project is available on [Github](https://github.com/LucasO21/Airline-Passenger-Satisfaction-Prediction).
